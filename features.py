@@ -8,23 +8,24 @@ import tkinter as tk
 from tkinter import messagebox, colorchooser, filedialog
 import json
 import csv
+import networkx as nx
 
 # Initialize Dash app
 app = dash.Dash(__name__)
 
 # Sample Data (Graph Representation)
 initial_nodes = [
-    {"data": {"id": "1", "label": "User 1"}, "position": {"x": 100, "y": 100}},
-    {"data": {"id": "2", "label": "User 2"}, "position": {"x": 200, "y": 200}},
-    {"data": {"id": "3", "label": "User 3"}, "position": {"x": 300, "y": 300}},
-    {"data": {"id": "4", "label": "User 4"}, "position": {"x": 400, "y": 400}},
+    {"data": {"id": "1", "label": "User 1", "color": "#00bcd4", "profile": "Profile of User 1"}},
+    {"data": {"id": "2", "label": "User 2", "color": "#00bcd4", "profile": "Profile of User 2"}},
+    {"data": {"id": "3", "label": "User 3", "color": "#00bcd4", "profile": "Profile of User 3"}},
+    {"data": {"id": "4", "label": "User 4", "color": "#00bcd4", "profile": "Profile of User 4"}},
 ]
 
 initial_edges = [
-    {"data": {"source": "1", "target": "2"}},
-    {"data": {"source": "2", "target": "3"}},
-    {"data": {"source": "3", "target": "4"}},
-    {"data": {"source": "4", "target": "1"}},
+    {"data": {"source": "1", "target": "2", "weight": 1}},
+    {"data": {"source": "2", "target": "3", "weight": 1}},
+    {"data": {"source": "3", "target": "4", "weight": 1}},
+    {"data": {"source": "4", "target": "1", "weight": 1}},
 ]
 
 # Dash Layout
@@ -35,6 +36,7 @@ app.layout = html.Div([
         html.Button("Add Connection", id="add-connection", n_clicks=0, style={"marginRight": "10px"}),
         html.Button("Delete Selected", id="delete-selected", n_clicks=0, style={"marginRight": "10px"}),
         html.Button("Export Graph", id="export-graph", n_clicks=0, style={"marginRight": "10px"}),
+        html.Button("Find Shortest Path", id="find-shortest-path", n_clicks=0, style={"marginRight": "10px"}),
         dcc.Dropdown(
             id="layout-selector",
             options=[
@@ -64,11 +66,11 @@ app.layout = html.Div([
             {
                 "selector": "node",
                 "style": {
-                    "background-color": "#00bcd4",
+                    "background-color": "data(color)",
                     "label": "data(label)",
                     "font-size": "14px",
                     "color": "#ffffff",
-                    "tooltip": "data(label)",
+                    "tooltip": "data(profile)",
                 },
             },
             {
@@ -83,6 +85,7 @@ app.layout = html.Div([
         userZoomingEnabled=True,
         userPanningEnabled=True,
     ),
+    html.Div(id="shortest-path-output", style={"textAlign": "center", "marginTop": "20px"}),
 ])
 
 # Dash Callbacks
@@ -102,7 +105,7 @@ def update_graph(add_user_clicks, add_connection_clicks, delete_selected_clicks,
 
     if button_id == "add-user":
         new_user_id = str(len([el for el in elements if "source" not in el["data"]]) + 1)
-        elements.append({"data": {"id": new_user_id, "label": f"User {new_user_id}"}, "position": {"x": random.randint(50, 500), "y": random.randint(50, 500)}})
+        elements.append({"data": {"id": new_user_id, "label": f"User {new_user_id}", "color": "#00bcd4", "profile": f"Profile of User {new_user_id}"}, "position": {"x": random.randint(50, 500), "y": random.randint(50, 500)}})
 
     elif button_id == "add-connection":
         if len(elements) > 1:
@@ -110,7 +113,7 @@ def update_graph(add_user_clicks, add_connection_clicks, delete_selected_clicks,
             target = random.choice([el["data"]["id"] for el in elements if "source" not in el["data"]])
             while source == target:
                 target = random.choice([el["data"]["id"] for el in elements if "source" not in el["data"]])
-            elements.append({"data": {"source": source, "target": target}})
+            elements.append({"data": {"source": source, "target": target, "weight": 1}})
 
     elif button_id == "delete-selected":
         if selected_nodes:
@@ -148,6 +151,27 @@ def export_graph_image(n_clicks):
         "type": "png",
         "action": "download",
     }
+
+@app.callback(
+    Output("shortest-path-output", "children"),
+    Input("find-shortest-path", "n_clicks"),
+    State("network-graph", "elements"),
+    State("network-graph", "selectedNodeData"),
+)
+def find_shortest_path(n_clicks, elements, selected_nodes):
+    if n_clicks == 0 or not selected_nodes or len(selected_nodes) != 2:
+        return "Please select exactly two nodes to find the shortest path."
+
+    G = nx.Graph()
+    for element in elements:
+        if "source" in element["data"]:
+            G.add_edge(element["data"]["source"], element["data"]["target"], weight=element["data"].get("weight", 1))
+
+    try:
+        path = nx.shortest_path(G, source=selected_nodes[0]["id"], target=selected_nodes[1]["id"], weight="weight")
+        return f"Shortest path: {' -> '.join(path)}"
+    except nx.NetworkXNoPath:
+        return "No path exists between the selected nodes."
 
 # Tkinter GUI
 
